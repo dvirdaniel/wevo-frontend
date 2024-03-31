@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:webfeed/webfeed.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:http/http.dart';
 import 'package:intl/intl.dart';
 import 'package:ionicons/ionicons.dart';
 import 'package:app/components/view_rss_feed.dart';
+import '../services/communication_service.dart';
 
 
 class RssFeedWidget extends StatefulWidget {
@@ -23,6 +23,7 @@ class _RssFeedWidgetState extends State<RssFeedWidget> {
   late RssFeed rss=RssFeed();
   late String value;
   final String NO_IMAGE = '/icons/no_image.png';
+  final CommunicationService _communicationService = CommunicationService();
 
   // Method to refresh the feed based on the new query
   void refreshState(String val) {
@@ -66,11 +67,9 @@ class _RssFeedWidgetState extends State<RssFeedWidget> {
        // For debugging
        // print(this.value);
 
-       // This is an open REST API endpoint for testing purposes
-       String url = "http://localhost:8080/feed/$value";
-       final response = await get(Uri.parse(url));
-       if (response.statusCode == 200 && response.body.isNotEmpty) {
-         var channel = RssFeed.parse(response.body);
+       final String response = await _communicationService.fetchData(value);
+       if (response.isNotEmpty) {
+         var channel = RssFeed.parse(response);
          setState(() {
            rss = channel;
            isLoading = false;
@@ -103,6 +102,49 @@ class _RssFeedWidgetState extends State<RssFeedWidget> {
     return image;
   }
 
+  handleFeedItem(index) {
+    var item;
+    var feedItems;
+    String image;
+    if (rss.items!.isNotEmpty) {
+      item = rss.items![index];
+      image = handleImage(item);
+      feedItems = {
+        'title': item.title,
+        'content': item.content != null ? item.content!.value : item.description,
+        'image': image,
+        'creator': item.dc!.creator,
+        'link': item.link,
+        'pubDate': item.pubDate,
+        'author': item.dc!.creator
+      };
+
+    } else {
+      item = rss;
+      image = item.image != null ? item.image.url : '/icons/no_image.png';
+
+      // Parse the string date to a DateTime object
+      DateTime dateTime = DateFormat('E, d MMM yyyy HH:mm:ss').parse(item.lastBuildDate);
+
+      // Format the DateTime object to a full date format
+      String imageUrl = rss.image!.url!.toString();
+      String imageTitle = rss.image!.title!.toString();
+
+      // HTML content with an <img> tag
+      String htmlContent = '<img src="$imageUrl" alt="$imageTitle">';
+      feedItems = {
+        'title': rss.title,
+        'content': htmlContent,
+        'image': image,
+        'creator': rss.dc!.creator,
+        'link': rss.link,
+        'pubDate': dateTime.toString(),
+        'author': rss.author?? rss.generator,
+      };
+    }
+    return feedItems;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -113,42 +155,7 @@ class _RssFeedWidgetState extends State<RssFeedWidget> {
               ListView.builder(
                  itemCount: rss.items!.isNotEmpty ? rss.items!.length : 1,
                  itemBuilder: (BuildContext context, index) {
-                   var item;
-                   var feedItems;
-                   String image;
-                   if (rss.items!.isNotEmpty) {
-                     item = rss.items![index];
-                     feedItems = {
-                       'title': item.title,
-                       'content': item.content != null ? item.content!.value : item.description,
-                       'creator': item.dc!.creator,
-                       'link': item.link,
-                       'pubDate': item.pubDate,
-                       'author': item.dc!.creator
-                     };
-                     image = handleImage(item);
-                   } else {
-                     item = rss;
-                     image = item.image != null ? item.image.url : '/icons/no_image.png';
-
-                     // Parse the string date to a DateTime object
-                     DateTime dateTime = DateFormat('E, d MMM yyyy HH:mm:ss').parse(item.lastBuildDate);
-
-                     // Format the DateTime object to a full date format
-                     String imageUrl = rss.image!.url!.toString();
-                     String imageTitle = rss.image!.title!.toString();
-
-                     // HTML content with an <img> tag
-                     String htmlContent = '<img src="$imageUrl" alt="$imageTitle">';
-                     feedItems = {
-                      'title': rss.title,
-                      'content': htmlContent,
-                      'creator': rss.dc!.creator,
-                      'link': rss.link,
-                      'pubDate': dateTime.toString(),
-                      'author': rss.author?? rss.generator,
-                      };
-                   }
+                   var feedItems = handleFeedItem(index);
 
                    // For debugging
                    // print(feedItems);
@@ -164,9 +171,9 @@ class _RssFeedWidgetState extends State<RssFeedWidget> {
 
                          leading: Image(
                              image: CachedNetworkImageProvider(
-                                 image
+                                 feedItems['image']!.toString()
                              )),
-                         title: Text(item.title.toString()),
+                         title: Text(feedItems['title']!.toString()),
                          subtitle: Row(
                            children: [
                              Icon(Ionicons.time_outline),

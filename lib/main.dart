@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'components/rss_feed.dart';
+import 'services/communication_service.dart';
 
 
 void main() {
@@ -13,7 +13,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Suggestions & RSS App',
+      title: 'RSS Feed App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
@@ -31,6 +31,7 @@ class _MainPageWidgetState extends State<MainPageWidget> {
   final TextEditingController _inputController = TextEditingController();
   List<String> _suggestions = [];
   String rssFeedValue = '';
+  final CommunicationService _communicationService = CommunicationService();
 
   // Callback function to update value in child widget
   void updateRssFeedValue(String newValue) {
@@ -61,9 +62,9 @@ class _MainPageWidgetState extends State<MainPageWidget> {
   }
 
   Future<void> _fetchSuggestions() async {
-    final response = await http.get(Uri.parse('http://localhost:8080/suggestions'));
-    if (response.statusCode == 200) {
-      List<String> stringList = (jsonDecode(response.body) as List<dynamic>).cast<String>();
+    final String response = await _communicationService.fetchSuggestions();
+    if (response.isNotEmpty) {
+      List<String> stringList = (jsonDecode(response) as List<dynamic>).cast<String>();
       setState(() {
         _suggestions = stringList;
       });
@@ -95,7 +96,7 @@ class _MainPageWidgetState extends State<MainPageWidget> {
                 FloatingActionButton(
                   onPressed: () {
                     _fetchRssFeed();
-                    Timer(Duration(seconds: 1), () {
+                    Timer(Duration(seconds: 2), () {
                       _fetchSuggestions();
                     });
                   },
